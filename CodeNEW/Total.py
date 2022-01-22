@@ -1,19 +1,21 @@
-import serial, datetime
+#Raspberry Pi code to control immersion cooling chamber
+#Authors: Haseeb Irfan, Kevin Antony Gomez, Connor McCreary
+#Trivia fact of the day: 
 
+#import libraries
+import serial, datetime
 import pygame, sys, time
 
 #initialize library
 pygame.init()
 
-
-#common definitions
+#common color definitions
 gray_0 = 128,128,128
 gray_1 = 80,80,80
 gray_2 = 50,50,50
 black = 0,0,0
 white = 255, 255, 255
 icon_level = 555
-
 
 #set window parameters
 size = width, height = 1024, 600
@@ -26,31 +28,40 @@ MS_icon = pygame.image.load("/home/pi/Desktop/pygameimages/MS_Logo.png")
 pygame.display.set_icon(MS_icon)
 
 #load images
+
+#fan icon
 fan_icon = pygame.image.load("/home/pi/Desktop/pygameimages/fan_icon.png")
 fan_icon = pygame.transform.scale (fan_icon, (50,50))
 
+#thermometer icon
 temp_icon = pygame.image.load("/home/pi/Desktop/pygameimages/temp_icon.png")
 temp_icon = pygame.transform.scale (temp_icon, (50,50))
 
+#house icon
 home_icon = pygame.image.load("/home/pi/Desktop/pygameimages/home_icon.png")
 home_icon = pygame.transform.scale (home_icon, (50,50))
 
+#pressure gauge icon
 pressure_icon = pygame.image.load("/home/pi/Desktop/pygameimages/pressure_icon.png")
 pressure_icon = pygame.transform.scale (pressure_icon, (50,50))
 
+#beaker icon
 level_icon = pygame.image.load("/home/pi/Desktop/pygameimages/level_icon.png")
 level_icon = pygame.transform.scale (level_icon, (50,50))
 
+#objects to detect when icons are clicked
 tempClick = pygame.draw.circle(screen,white,(112,icon_level),35,0)
 fanClick = pygame.draw.circle(screen,white,(312,icon_level),35,0)
 homeClick = pygame.draw.circle(screen,white,(512,icon_level),35,0)
 pressureClick = pygame.draw.circle(screen,white,(712,icon_level),35,0)
 levelClick = pygame.draw.circle(screen,white,(912,icon_level),35,0)
 
-
-
+#initialize state to default screen
+state = 0
 
 #functions
+
+#default state to display all values
 def state0(temp, fan, pressure, level):
 
     #make gray background
@@ -79,14 +90,14 @@ def state0(temp, fan, pressure, level):
     levelClick = pygame.draw.circle(screen,white,(912,icon_level),35,0)
 
     #spawn icons
-    screen.blit(temp_icon,      (87,icon_level-25))
+    screen.blit(temp_icon,      (87, icon_level-25))
     screen.blit(fan_icon,       (287,icon_level-25))
     screen.blit(home_icon,      (487,icon_level-25))
     screen.blit(pressure_icon,  (687,icon_level-25))
     screen.blit(level_icon,     (887,icon_level-25))
 
     #text for headings
-    font = pygame.font.SysFont('georgia', 28)
+    font = pygame.font.SysFont(None, 28)
     img = font.render('Temperature', True, white)
     screen.blit(img, (256 - img.get_width()/2, 15))
 
@@ -116,7 +127,7 @@ def state0(temp, fan, pressure, level):
 
     return homeClick, tempClick,fanClick, pressureClick, levelClick
 
-
+#state to view temperature
 def state1(temp):
 
     #draw white rectangle
@@ -135,7 +146,7 @@ def state1(temp):
     img = font.render(temp, True, black)
     screen.blit(img, (512 - img.get_width()/2, 150))
 
-
+#state to view fan speed
 def state2(fan):
 
     #draw white rectangle
@@ -154,6 +165,7 @@ def state2(fan):
     img = font.render(fan, True, black)
     screen.blit(img, (512 - img.get_width()/2, 150))
 
+#state to view pressure
 def state3(pressure):
 
     #draw white rectangle
@@ -172,6 +184,7 @@ def state3(pressure):
     img = font.render(pressure, True, black)
     screen.blit(img, (512 - img.get_width()/2, 150))
 
+#state to view fluid level
 def state4(level):
 
     #draw white rectangle
@@ -190,20 +203,17 @@ def state4(level):
     img = font.render(level, True, black)
     screen.blit(img, (512 - img.get_width()/2, 150))
 
-
+#function to drive Koolance
 def set_koolance(fanspeed, pumpLevel):
+    
+     #open Koolance serial communication
      serKool = serial.Serial()
-     serKool.port = '/dev/ttyUSB0'
+     serKool.port = '/dev/ttyUSB0'  #may need to adjust depending on USB port Koolance is plugged into
      serKool.baudrate = 9600
      serKool.timeout=0
      serKool.open()
  
-     #ser.write(0xCF)
- 
-     #packet = bytearray()
-     #packet.append(0xCF)
-     #packet.append(0x01)
-     #packet.append(0x08)
+     #check fan speed edge cases
      if (fanspeed < 0):
          fanspeed = 0
          
@@ -220,6 +230,8 @@ def set_koolance(fanspeed, pumpLevel):
      remainder = (fanspeed + pumpLevel + remainder) % 100
  
      packet = bytearray()
+    
+     #unchanged Koolance control bits
      packet.append(0xCF) #0
      packet.append(0x04) #1
  
@@ -246,7 +258,7 @@ def set_koolance(fanspeed, pumpLevel):
      packet.append(0x00) #16
      packet.append(pumpLevel) #17
  
- 
+ #other Koolance control bits
      packet.append(0x06) #18
      packet.append(0xAE) #19
      packet.append(0xAA) #20
@@ -273,31 +285,21 @@ def set_koolance(fanspeed, pumpLevel):
      packet.append(0xAA) #41
      packet.append(0xAA) #42
      packet.append(0xAA) #43
- 
      packet.append(0x00) #44
      packet.append(0x01) #45
-    
      packet.append(0x00) #46
      packet.append(0x01) #47
- 
      packet.append(0x00) #48
      packet.append(0x01) #49
  
+     #parity byte
      packet.append(remainder) #50
  
+     #transmit control signal
      serKool.write(packet)
      print("Command Sent")
  
      serKool.close()
-
-#start this after starting arduino code (might be fine either way but just to be safe)
-state = 0
-#will NOT work if serial monitor is open!
-
-
-
-
-
 
 def updateGUI(temp, fan, pressure, level, state):
 
