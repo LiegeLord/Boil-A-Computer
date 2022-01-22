@@ -25,6 +25,8 @@ int ledValue =0;
 //******************************
 DHTNEW mySensor(9);
 
+int relay = 2;
+
 int speedPercent = 0; //fan off initially
 int freq = 0;
 int pressureRaw = 0;
@@ -41,6 +43,7 @@ float humidity = 0;
 void setup() {
   Serial.begin(9600);
   pinMode(6, OUTPUT);
+  pinMode(relay, OUTPUT);
 
   //*****************
   Setpoint = 159; //0 - 255
@@ -83,6 +86,7 @@ float levelChange(int rawValue){
 
 void loop() {
 
+ 
   //freq = analogRead(8); //fan ADC values (?)
   pressureRaw = analogRead(5); 
   speedPercent = speedChange(pressureRaw); //change fan speed based on pressure
@@ -90,8 +94,12 @@ void loop() {
   fluidLevelRaw = analogRead(10);
   fluidLevelInch = levelChange(analogRead(10));
 
-
-
+  if (pressure < 1) {
+    digitialWrite(relay, LOW);
+  }
+  else {
+    digitialWrite(relay, HIGH);
+  }
 
   //****************************
   readValue = analogRead(A0);
