@@ -95,10 +95,10 @@ void loop() {
   fluidLevelInch = levelChange(analogRead(10));
 
   if (pressure < 1) {
-    digitialWrite(relay, LOW);
+    digitalWrite(relay, LOW);
   }
   else {
-    digitialWrite(relay, HIGH);
+    digitalWrite(relay, HIGH);
   }
 
   //****************************
