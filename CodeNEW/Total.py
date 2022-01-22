@@ -1,6 +1,6 @@
 #Raspberry Pi code to control immersion cooling chamber
 #Authors: Haseeb Irfan, Kevin Antony Gomez, Connor McCreary
-#Trivia fact of the day: 
+#Trivia of the day: Pluto is not a planet, it is a cartoon dog
 
 #import libraries
 import serial, datetime
