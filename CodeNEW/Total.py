@@ -301,10 +301,14 @@ def set_koolance(fanspeed, pumpLevel):
  
      serKool.close()
 
+#function that updates the GUI's values and process clicks
+    
 def updateGUI(temp, fan, pressure, level, state):
 
+    #process clicks
     homeClick, tempClick, fanClick, pressureClick, levelClick = state0(temp, fan, pressure, level)
     
+    #adjust state
     if state == 1:
         state1(temp)
     if state == 2:
@@ -314,7 +318,7 @@ def updateGUI(temp, fan, pressure, level, state):
     if state == 4:
         state4(level)
 
-    #Event sniffer
+    #event handler for quitting and clicking icons
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -329,41 +333,36 @@ def updateGUI(temp, fan, pressure, level, state):
                 state = 3
             if levelClick.collidepoint(event.pos):
                 state = 4
-
+    
+    #adjust koolance speed
     set_koolance(int(fan),10)
 
+    #load new display
     pygame.display.update()
     return state
-    
 
-
+#format date and append to .csv name
 dt = datetime.datetime.now()
 dt_str = dt.strftime(" %d-%m-%y %H:%M:%S")
-
-serial_port_2 = '/dev/ttyACM0';   #this may need to be rewritten depending on your device
-                        #Use whatever is written at top of serial monitor
-baud_rate = 9600;
 write_to_file_path = "ArduinoSnifferOutput" + dt_str + ".txt";
 
+#determine serial port to write to .csv on RPi
+serial_port_2 = '/dev/ttyACM0';   #this may need to be rewritten depending on your device
 output_file = open(write_to_file_path, "w");
+
+#open port
+baud_rate = 9600;
 ser_CSV = serial.Serial(serial_port_2, baud_rate)
+
 while True:
+    #copy each transmitted line to .csv
     line = ser_CSV.readline();
     line = line.decode("utf-8")
-    #print(line);
     output_file.write(line);
     
+    #splice line and isolate numbers
     arr = line.strip().split(",")
     print(arr)
+    
+    #call function to update GUI with proper values
     state = updateGUI(arr[1], arr[2], arr[4], arr[6], state)
-
-
-
-
-
-
-
-
-
-
-
