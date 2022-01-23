@@ -17,7 +17,6 @@ double Kp=1.2, Ki=.25, Kd=0.1;
 //create PID instance
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, REVERSE);
 
-int readValue = 0; //Raw input signal
 int ledValue =0;
 
 
@@ -94,7 +93,7 @@ void loop() {
   fluidLevelRaw = analogRead(10);
   fluidLevelInch = levelChange(analogRead(10));
 
-  if (pressure < 1) {
+  if (pressure < 0.5) {
     digitalWrite(relay, LOW);
   }
   else {
@@ -102,10 +101,8 @@ void loop() {
   }
 
   //****************************
-  readValue = analogRead(A0);
   //map analog pressureinput signal coming into pin from pin A0 from 0-1024 to 0-255 and set it as Input
   Input = map(pressureRaw, 0, 1024, 0, 255); 
-  //Input = readValue; //If you don't need to map to 0-255
   //PID calculation
   myPID.Compute();
   //Write the output as calculated by PID function
