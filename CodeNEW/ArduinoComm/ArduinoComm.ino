@@ -109,7 +109,6 @@ void loop() {
     if (!relayState){
       relayState = HIGH;
       digitalWrite(relayPin, relayState);
-      Serial.println("SWAP");
     }
   }
   
@@ -119,7 +118,6 @@ void loop() {
     if (relayState){
       relayState = LOW;
       digitalWrite(relayPin, relayState);
-      Serial.println("SWAP");
     }
   }
   
