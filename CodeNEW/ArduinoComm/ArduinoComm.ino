@@ -1,146 +1,164 @@
-// Libraries and vars
+//include libraries
 #include <Wire.h> 
-#include <dhtnew.h>
+#include "TinyDHT.h"
+#include <PID_v1.h>
 
-//******************************
+//global value declaration
 
+//PID variables
+double Setpoint;                  //desired value
+double Input;                     //input pressure value
+double Output;                    //output fan speed value
+double Kp=1.2, Ki=.25, Kd=0.1;    //PID parameters
 
-#include <PID_v1.h> //https://github.com/br3ttb/Arduino-PID-Library
+//pin values
+int relayPin = 3;               //digital
+int pressurePin = 5;            //analog
+int levelPin = 4;               //analog
+int tempPin = 2;                //digital
 
-double Setpoint; // Desired value
-double Input; // Input pressure value
-double Output; // Output fan speed value
+//reading values
+int fanSpeed = 0;           //fan speed
+int pressureRaw = 0;        //raw pressure reading (ADC)
+float pressurePSI = 0;      //adjusted pressure reading
+int fluidLevelRaw = 0;      //raw fluid level
+double fluidLevelInch = 0;  //adjusted fluid level
+int temp = 0;               //raw temperature reading
 
-//PID paramaters 
-double Kp=1.2, Ki=.25, Kd=0.1;
+//object creation
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, REVERSE);     //PID object instantiation
+DHT dht(tempPin, DHT11);                                        //temperature sensor instantiation
 
-//create PID instance
-PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, REVERSE);
+//variable to capture realy state
+int relayState;
 
-int ledValue =0;
-
-
-
-//******************************
-DHTNEW mySensor(9);
-
-int relay = 2;
-
-int speedPercent = 0; //fan off initially
-int freq = 0;
-int pressureRaw = 0;
-float pressure = 0;
-int fluidLevelRaw = 0;
-double fluidLevelInch = 0;
-float temp = 0;
-float humidity = 0;
-
-//Fan Speed: 
-//170 - 20%
-//255 - 100%
-/*********************************************************/
+//setup function
 void setup() {
-  Serial.begin(9600);
-  pinMode(6, OUTPUT);
-  pinMode(relay, OUTPUT);
-
-  //*****************
-  Setpoint = 159; //0 - 255
-  //Turn PID on
-  myPID.SetMode(AUTOMATIC);
-  //Adjust PID values
-  myPID.SetTunings(Kp, Ki, Kd);
-  //*****************
+  //capture relay state
+  int relayState = HIGH;
   
+  //start serial communication
+  Serial.begin(9600);
+
+  //begin temperature reading
+  dht.begin();
+
+  //set pins to output
+  pinMode(relayPin, OUTPUT);
+  
+  //make PID setpoint
+  Setpoint = 159; //desired value (range: 0 - 255)
+  
+  //turn PID on
+  myPID.SetMode(AUTOMATIC);
+  
+  //adjust PID values
+  myPID.SetTunings(Kp, Ki, Kd);
+
 }
 
-//change fan speed with change in pressure
-int speedChange(int pressureRaw){
-  if (pressureRaw < 547){ // 547 seems to be equlibirium
-    analogWrite(6,0);
-    return 0;
-  }
-  else {
-    speedPercent = (pressureRaw-547)/4; //pressure max seems to be 1012, so increase by 4 = 1% increase
-    if(speedPercent > 100){ //if speed >100 => totalSpeed > 255 (fan will turn off)
-      speedPercent = 100; //so, limit to 100 (can change later using floor function)   
-    }
-    int totalSpeed = (speedPercent * .85) + 170;
-    analogWrite(6, totalSpeed);
-    return speedPercent;
-  }
-}
+//function to adjust raw level to inches
+float levelChange(int levelRaw){
 
-float levelChange(int rawValue){
-  float levelInches = ((float)rawValue / 20) - 25;
-  if (levelInches <1){
+  //formula for conversion
+  float levelInches = ((float)levelRaw / 20) - 25;
+
+  //bounds protection
+  if (levelInches < 1){
     return 1.0;
   }
-  else if (levelInches>12){
+  else if (levelInches > 12){
     return 12.0;
   }
-  //Serial.println(((float)round(levelInches * 10))/10);
-  return ((float)round(levelInches * 10))/10;
+  
+  //return final value
+  return levelInches;
 }
 
+//function to adjust raw pressure to psi
+float pressureChange(int pressureRaw){
+
+  //formula for conversion
+  float pressurePSI = (float)(pressureRaw - 512) / 512;
+
+  //bounds protection
+  if (pressurePSI < -1){
+    return -1;
+  }
+  else if (pressurePSI > 1){
+    return 1;
+  }
+  
+  //return final value
+  return pressurePSI;
+}
+
+//loop function
 void loop() {
 
- 
-  //freq = analogRead(8); //fan ADC values (?)
-  pressureRaw = analogRead(5); 
-  speedPercent = speedChange(pressureRaw); //change fan speed based on pressure
-  pressure = (float)(analogRead(5)-512)/256; //pressure in kPa 
-  fluidLevelRaw = analogRead(10);
-  fluidLevelInch = levelChange(analogRead(10));
+  //value reading and converting
+  pressureRaw = analogRead(pressurePin);             //raw pressure (ADC)
+  pressurePSI = pressureChange(pressureRaw);         //adjusted pressure in psi
+  fluidLevelRaw = analogRead(levelPin);              //raw level (ADC)
+  fluidLevelInch = levelChange(fluidLevelRaw);       //adjusted level in inches
 
-  if (pressure < 0.5) {
-    digitalWrite(relay, LOW);
+  //electronic pressure valve control based on high pressure
+  if (pressurePSI >.5){
+    
+    //move pin high if not high yet
+    if (!relayState){
+      relayState = HIGH;
+      digitalWrite(relayPin, relayState);
+      Serial.println("SWAP");
+    }
   }
-  else {
-    digitalWrite(relay, HIGH);
+  
+  else{
+    
+    //move pin low if not low yet
+    if (relayState){
+      relayState = LOW;
+      digitalWrite(relayPin, relayState);
+      Serial.println("SWAP");
+    }
   }
-
-  //****************************
-  //map analog pressureinput signal coming into pin from pin A0 from 0-1024 to 0-255 and set it as Input
+  
+  //map analog pressure input signal coming into pin from pin A0 from 0-1024 to 0-255 and set it as Input
   Input = map(pressureRaw, 0, 1024, 0, 255); 
+  
   //PID calculation
   myPID.Compute();
-  //Write the output as calculated by PID function
-  //analogWrite(outputPin, Output); //Set ledPin to PID Output value. This is a PWM pin
-  //Send data by serial for plotting
-  //Serial.print(millis());
-  //Serial.print("\t");
-  //Serial.print(map(Input, 0, 255, 0, 100));
-  //Serial.print("\t");
-  int PIDfanspeed = map(Output, 0, 255, 0, 100);
 
+  //scale PID fan speed
+  fanSpeed = map(Output, 0, 255, 0, 100);
 
-  //****************************
+  //temperature sensor update
+  temp = dht.readTemperature(0);
 
-
-  
-  //temp
-  mySensor.read();
-  //updateVals(speedPercent, freq, pressureRaw, pressure, analogRead(10), temp);  //user fluidLevelInch for level in inches, then convert updateVals to take float
-
-  temp = (mySensor.getTemperature());
-  humidity = (mySensor.getHumidity());
-  
+  //temperature bounds protection
+  if (temp < 0) {
+    temp = 0;
+  }
+  else if (temp > 100) {
+    temp = 100;
+  }
+ 
+  //serial communication of measured and converted values to raspberry pi
   Serial.print(millis());
   Serial.print(",");
   Serial.print(temp);
   Serial.print(",");
-  Serial.print(PIDfanspeed);
+  Serial.print(fanSpeed);
   Serial.print(",");
   Serial.print(pressureRaw);
   Serial.print(",");
-  Serial.print(pressure);
+  Serial.print(pressurePSI);
   Serial.print(",");
   Serial.print(fluidLevelRaw);
   Serial.print(",");
-  //Serial.print(fluidLevelInch);
-  Serial.print(humidity);
+  Serial.print(fluidLevelInch);
   Serial.print("\n");
-  
-  delay(160);
+
+  //delay to transmit
+  delay(400);
 }
